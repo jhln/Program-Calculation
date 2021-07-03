@@ -1,16 +1,16 @@
 module Exercises where
 
 data Nat = Zero | Succ Nat  deriving (Show, Eq)
-data T = Nil | Cons (A,T)   deriving (Show, Eq)
-type A = Int
+data T = Nil | Cons (Nat,T)   deriving (Show, Eq)
+type A = Nat
 
 p1 :: (a, b) -> a
-p1 = fst 
+p1 = fst
 p2 :: (a, b) -> b
-p2 = snd 
+p2 = snd
 
 (<<>>) :: ( a -> b ) -> ( a -> c ) -> a -> (b,c)
-(f <<>> g) x = (f x, g x)  
+(f <<>> g) x = (f x, g x)
 
 (<&>) :: (a->b) -> (c->d) -> (a,c) -> (b,d)
 f <&> g = (f . p1) <<>> (g . p2)
@@ -31,7 +31,7 @@ i2 = Right
 f <+> g = (i1 . f) <|> (i2 . g)
 
 (?) :: (a -> Bool) -> a -> Either a a
-p? x = if p x 
+p? x = if p x
         then i1 x
         else i2 x
 
@@ -59,10 +59,43 @@ hd (Cons (a,t)) = a
 hd Nil = error "not implemented"
 
 tl :: T -> T
-tl (Cons (a,t)) = t 
+tl (Cons (a,t)) = t
 tl Nil = error "not implemented"
 
 
-add :: Num a => (a, a) -> a
-add (x,y) = x + y
+add :: (Nat, Nat) -> Nat
+add (x,Zero) = x
+add (x, Succ n) = Succ $ add (x,n)
+
+synthyTest :: T
+synthyTest = synthy $ Succ $ Succ $ Succ $ Succ $ Zero
+synthy2Test :: T
+synthy2Test = synthy2 $ Succ $ Succ $ Succ $ Succ $ Zero
+synthyTestAnswer :: T
+synthyTestAnswer = Cons (Succ (Succ (Succ (Succ Zero))),Cons (Succ (Succ (Succ Zero)),Cons (Succ (Succ Zero),Cons (Succ Zero,Nil))))
+
+
+synthy2 :: Nat -> T
+synthy2 = (const Nil <|> (Cons . (id <&> synthy))) . ((!) <+> (id <<>> pre)) . ((== Zero)?)
+
+-- page 83
+synthy :: Nat -> T
+synthy =  (const Nil <|> (Cons . (id <<>> (synthy . pre)) ) ) . ((== Zero)?)
+
+pre :: Nat -> Nat
+pre (Succ n) = n
+pre Zero = Zero
+
+addListTest :: Nat
+addListTest = addList synthyTest
+addListTestAnswer :: Nat
+addListTestAnswer = Succ (Succ (Succ (Succ (Succ (Succ (Succ (Succ (Succ (Succ Zero)))))))))
+
+
+
+-- page 82
+addList :: T -> Nat
+addList = ( const Zero <|> (add . ( hd <<>> (addList . tl) )) )
+          . ((== Nil)?)
+
 
