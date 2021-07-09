@@ -65,6 +65,11 @@ x_swap = pi2 <&> pi1
 x_assocr :: ((a,b),c) -> (a,(b,c))
 x_assocr = (pi1 # pi1) <&> (pi2 >< (§))
 
+-- x_assocl
+-- for 2.17
+x_assocl :: (a,(b,c)) -> ((a,b),c)
+x_assocl = ((§) >< pi1) <&> (pi2 # pi2)
+
 -----------------------------------------------------------------------------------------------------
 
 -- tagiig page 31
@@ -92,7 +97,8 @@ f -|- g = (in1 # f) <+> (in2 # g)
 -- TODO (2.45) quickcheck for +-id
 -- TODO (2.41) quickcheck for +-reflection
 
--- ex 2.5
+
+-- exercise 2.5
 -- 't' because of similar shape to '+'
 -- TODO quickcheck for t_swap # t_swap = §
 t_swap :: Either a b -> Either b a
@@ -100,11 +106,15 @@ t_swap (Left a) = Right a
 t_swap (Right a) = Left a
 
 
--- ex 2.6
+-- exercise 2.6
 -- 't' because of similar shape to '+'
 -- TODO (2,48) quickcheck for def
 t_assocr :: (Either (Either a b) c) -> Either a (Either b c)
 t_assocr = ((§) -|- in1) <+> (in2 # in2)
+
+
+-- TODO exercise 2.10
+
 
 
 -------------------------------------------------------------------------------------
@@ -131,12 +141,14 @@ undistr :: Either (a,b) (a,c) -> (a,Either b c)
 undistr =  ((§) >< in1) <+> ((§) >< in2)
 
 
--- undistl
+
 -- exercise 2.11
+-- undistl
 undistl :: Either (b,a) (c,a) -> (Either b c, a)
 undistl =  x_swap # undistr # (x_swap -|- x_swap)
 
--- TODO exercies 2.12, 2.13
+-- TODO exercies 2.12
+-- TODo exercise 2.13
 
 
 pattern_f :: (a->d) -> (b->e) -> (c->f) -> (a, Either b c) -> (d, Either e f)
@@ -147,12 +159,63 @@ pattern_g f g h = (f >< g) -|- (f >< h)
 
 -------------------------------------------------------------------
 
+-- Natrual Properties
+
 -- TODO ex. 2.14
 -- TODO ex. 2.15
 -- TODO ex. 2.16
+
+
+-------------------------------------------------------------------
+
+-- Universal Properties
+
 -- TODO ex. 2.17
+-- with x_assocr and x_assocl fromabove
+
+-- show: x_assocr # assocl = id
+-- (pi1 # pi1) <&> (pi2 >< (§)) # assocl
+-- by x-fusion
+-- (pi1 # pi1 # assocl) <&> ((pi2 >< (§)) # assocl)
+-- by x-cancellation and x-absorption 
+-- (pi1 # (§)) <&> ((pi2 # ((§) >< pi1)) >< ((§) # (pi2 # pi2)))
+-- by x-cancellation
+-- pi1 <&> ((pi1 # pi2) >< (pi2 # pi2)) = id_(a,(b,c))
+
 -- TODO ex. 2.18
+
+leftSide f k g = (f >< (k°°)) -|- (g >< (k°°)) 
+-- by universal properties:
+
+-- leftSide # in1 = f >< (k°°)
+-- pi1 # leftSide # in1 = f
+-- pi2 # leftSide # in1 = k°°
+
+-- leftSide # in2 = g >< (k°°)
+-- pi1 # leftSide # in2 = g
+-- pi2 # leftSide # in2 = k°°
+
+
+rightSide f k g = (f -|- g) >< (k°°)
+-- by universal properties:
+
+-- pi1 # rightSide = f -|- g
+-- pi1 # rightSide # in1 = f , thus same as above
+-- pi1 # rightSide # in2 = g , thus same as above
+
+-- pi2 # rightSide = k°° because auf +-id is the same as:
+-- pi2 # leftSide # in1 = k°° and pi2 # leftSide # in2 = k°°
+
+
 -- TODO ex. 2.19
+
+-- +-reflection
+-- id = f -|- g
+-- by universal properties
+-- id # in1 = f thus in1 = f
+-- id # in2 = g thus in2 = g
+-- thus id = in1 -|- in2
+
 -- TODO ex. 2.20
 -- TODO ex. 2.21
 
