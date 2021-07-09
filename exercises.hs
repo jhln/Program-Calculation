@@ -118,8 +118,11 @@ exchangelaw__7 =  (in1 >< in1) <+> (in2 >< in2)
 --exchangelaw__4 :: (Either f h, Either g k) -> Either (f,g) (h,k) 
 --exchangelaw__4 =  (in1 <+> in1) <&> (in2 <+> in2)
 
---exlaw_7 :: Either a c -> (b,d)
---exlaw_7 = 
+exLawLeft :: (a->b) -> (a->d) -> (c->b) -> (c->d) -> Either a c -> (b,d)
+exLawLeft f g h k = (f <&> g) <+> (h <&> k)
+exLawRight :: (a->b) -> (a->d) -> (c->b) -> (c->d) -> Either a c -> (b,d)
+exLawRight f g h k = (f <+> h) <&> (g <+> k)
+
 
 -- undistr
 -- TODO (2.52) quickcheck for def
@@ -147,6 +150,11 @@ pattern_g f g h = (f >< g) -|- (f >< h)
 -- TODO ex. 2.14
 -- TODO ex. 2.15
 -- TODO ex. 2.16
+-- TODO ex. 2.17
+-- TODO ex. 2.18
+-- TODO ex. 2.19
+-- TODO ex. 2.20
+-- TODO ex. 2.21
 
 -------------------------------------------------------------------
 
