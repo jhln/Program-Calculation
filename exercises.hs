@@ -114,8 +114,15 @@ t_assocr = ((§) -|- in1) <+> (in2 # in2)
 
 
 -- TODO exercise 2.10
-
-
+-- show ((f <+> h) # (pi1 -|- pi1 )) <&> ((g <&> k) # (pi2 -|- pi2))
+-- reduces to (f -|- g) <&> (h -|- k)
+-- ((f <+> h) # (pi1 -|- pi1 )) <&> ((g <&> k) # (pi2 -|- pi2))
+-- by +-absorption
+-- ((f # pi1) <+> (h # pi1)) <&> ((g # pi2) <&> (k # pi2))
+-- by exchange law
+-- ((f # pi1) <&> (g # pi2)) <+> (h # pi1 <&> k # pi2))
+-- by coproduct-def
+-- (f -|- g) <&> (h -|- k)
 
 -------------------------------------------------------------------------------------
 
