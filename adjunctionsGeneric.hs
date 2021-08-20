@@ -103,15 +103,27 @@ instance Functor Stack' where
   fmap f Empty'         = Empty'
   fmap f (Push' (n,s))  = Push' (n, f s)
 
-type L x = ( x,Myu Stack' )
+type L x = ( x, Stack )
 
-{-
-cat' :: forall x . (L x -> Myu Stack') 
-        -> (L (Stack' x) -> Myu Stack')
+cat' :: forall x . (L x -> Stack) 
+        -> (L (Stack' x) -> Stack)
 cat' cat (Empty', ns) = ns
 cat' cat (Push' (m,ms), ns) = Push (m, cat (ms, ns))
--}
 
+
+catEnd :: L (Myu Stack') -> Stack
+catEnd (In ms, ns) = cat' catEnd (ms, ns)
+
+
+{-
+cat' :: forall x . ((x,Stack) -> Stack)
+        -> ((Stack' x, Stack) -> Stack)
+cat' cat (Empty', ns) = ns
+cat' cat (Push'(m,ms), ns) = Push (m, cat (ms,ns))
+
+catEnd :: (Myu Stack', Stack) -> Stack
+catEnd (In ms, ns) = cat' catEnd (ms, ns)
+-}
 ----- 3.3.2 Mutual Value Recursion
 
 ----- 3.3.3 Single Value Recursion
