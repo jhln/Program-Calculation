@@ -1,1 +1,0 @@
-module Adjunctions where
