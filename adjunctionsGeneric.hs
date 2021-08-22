@@ -68,13 +68,15 @@ data Stat' expr stat = Assign' (Char, expr) | Seq' (stat,stat)
 
 varsExpr' :: forall x1 x2 . (x1 -> Vars, x2 -> Vars)
              -> (Expr' x1 x2 -> Vars)
-varsExpr' (varsExpr, varsStat) (Var' v) = [v]
+varsExpr' (varsExpr, varsStat) (Var' v) 
+  = [v]
 varsExpr' (varsExpr, varsStat) (Block' (s,e))
   = varsStat s ++ varsExpr e
 
 varsStat' :: forall x1 x2 . (x1 -> Vars, x2 -> Vars)
              -> (Stat' x1 x2 -> Vars)
-varsStat' (varsExpr, varsStat) (Assign' (x,e)) = x:varsExpr e
+varsStat' (varsExpr, varsStat) (Assign' (x,e)) 
+  = x:varsExpr e
 varsStat' (varsExpr, varsStat) (Seq' (s1,s2))
   = varsStat s1 ++ varsStat s2
 
