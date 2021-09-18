@@ -23,6 +23,7 @@ executable ProgramCalculation
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14,
                        containers,
+                       mtl,
                        array
                       
   -- hs-source-dirs:
