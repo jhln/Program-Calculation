@@ -288,6 +288,10 @@ round (Nest w : as) = case w of
 
 instance (Monoid s) => MonadWriter s (Concurrent (Writer s)) where
   tell = act . tell
+  listen = undefined
+  pass = undefined
+
+
 
 cat ::Concurrent (Writer String) Int
 cat = replicateM 5 (tell "cat" >> mark) >> return 1
@@ -298,3 +302,21 @@ fish = replicateM 7 (tell "fish" >> mark) >> return 2
 fish' ::Concurrent (Writer String) Int
 fish' = replicateM 7 (tell "fish") >> return 2
 
+
+
+paraRun1 = round [ do 
+                    x <- fish `par` cat
+                    tell "dog"
+                    return x]
+
+paraRun2 = round [ do 
+                    fork fish
+                    x <- cat
+                    tell "dog"
+                    return x]
+
+paraRun3 = round [ do 
+                    fork fish0
+                    x <- cat
+                    tell "dog"
+                    return x]
