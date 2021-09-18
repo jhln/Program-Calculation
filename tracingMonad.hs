@@ -8,7 +8,7 @@ module TracingMonad where
 
 import Prelude hiding (drop, round)
 import Data.List (nub)
-import Control.Monad.Writer (MonadWriter, Writer)
+import Control.Monad.Writer (MonadWriter, Writer, liftM)
 
 
 -- https://arxiv.org/pdf/1202.2922.pdf
@@ -16,7 +16,7 @@ import Control.Monad.Writer (MonadWriter, Writer)
 
 --- 2. Tracing with MonadTrans Free
 
-data Free f a = Wrap (f (Free f a)) 
+data Free f a = Wrap (f (Free f a))
               | Return a
 
 instance Functor f => Functor (Free f) where
@@ -85,7 +85,7 @@ instance Monad m => Applicative (Nest m) where
   pure = return
   m1 <*> m2 = do { x1 <- m1; x2 <- m2; return (x1 x2) }
   --(<*>) = ap
-  
+
 instance (Functor m, Monad m) => MonadTrans m (Nest m) where
   lift = Nest . fmap Return
   drop v = unNest v >>= revert
@@ -97,9 +97,9 @@ instance (Functor m, Monad m) => MonadTrace (Nest m) where
   mark = (Nest . return . Wrap . return . Return) ()
 
 -- 0. spät nachts, heimweg, auch lang, wichtig
--- 1. vermischen, 
--- 2. intensity, 
--- 3. home working at home, 
+-- 1. vermischen,
+-- 2. intensity,
+-- 3. home working at home,
 -- 4. telefonieren in der wohnung
 -- 5. nicht mitbekommen bei einmal besuchen
 
@@ -111,7 +111,7 @@ data Partial a = Later (Partial a) | Now a
 
 collatz::Integer -> Bool
 collatz 1 = True
-collatz n 
+collatz n
   | odd n     = collatz (3*n+1)
   | otherwise = collatz (n `div` 2)
 
@@ -134,7 +134,7 @@ instance Monad Identity where
 
 collatzN ::Integer -> Nest Identity Bool
 collatzN 1 = return True
-collatzN n 
+collatzN n
   | odd n     = mark >> collatzN (3*n+1)
   | otherwise = mark >> collatzN (n `div` 2)
 
@@ -168,8 +168,8 @@ coin = Distr [(0.5,0),(0.5,1)]
 
 -- endless loop !
 third ::Distr Int
-third = 
-  do 
+third =
+  do
     x <- coin
     y <- coin
     case (x, y) of
@@ -179,7 +179,7 @@ third =
       (0,0) -> third
 
 thirdN ::Nest Distr Int
-thirdN = do 
+thirdN = do
   x <- lift coin
   y <- lift coin
   case (x, y) of
@@ -199,9 +199,9 @@ approx :: (Functor m, Monad m) => Int -> Nest m a -> m (Maybe a)
 approx k = drop . takeN k
 
 simpl :: Eq a => Distr a -> Distr a
-simpl (Distr xs) = 
-  Distr (map 
-          (\ x -> (sum [p | (p,a) <- xs, x == a], x)) 
+simpl (Distr xs) =
+  Distr (map
+          (\ x -> (sum [p | (p,a) <- xs, x == a], x))
           (nub (fmap snd xs)))
 
 
@@ -220,8 +220,8 @@ brace = lift . call
 cut :: Nest [] ()
 cut = mark
 
-cutted = call ( 
-  do 
+cutted = call (
+  do
     x <- lift [4,7,13,9]
     y <- lift [2,8,1]
     when (x+y > 15) cut
@@ -229,11 +229,11 @@ cutted = call (
 
 when b m = if b then m else return ()
 
-cutted_nested = 
-  call ( 
-    do 
+cutted_nested =
+  call (
+    do
       x <- lift [4,7,13,9]
-      brace ( do 
+      brace ( do
                 y <- lift [2,8,1]
                 when (x+y > 15) cut
                 return (x+y) ) )
@@ -241,9 +241,9 @@ cutted_nested =
 
 --- 4.4 Poor man's concurrency transformer, revisited
 
-data Action m a = Par (Action m a) (Action m a) 
-                | Act (m (Action m a)) 
-                | Done a 
+data Action m a = Par (Action m a) (Action m a)
+                | Act (m (Action m a))
+                | Done a
                 | Kill
 
 instance Functor m => Functor (Action m) where
@@ -266,15 +266,15 @@ instance Functor m => Monad (Action m) where
 
 type Concurrent m = Nest (Action m)
 
-done ::(Monad m) -> a -> Concurrent m a
+done :: (Monad m) => a -> Concurrent m a
 done = lift . Done
-kill ::(Monad m) -> Concurrent m a
+kill ::(Monad m) => Concurrent m a
 kill = lift Kill
-act ::(Monad m) -> m a -> Concurrent m a
+act :: (Monad m) => m a -> Concurrent m a
 act m = lift (Act (liftM Done m))
-par::(Monad m) -> Concurrent m a -> Concurrent m a -> Concurrent m a
+par :: (Monad m) => Concurrent m a -> Concurrent m a -> Concurrent m a
 par (Nest m1) (Nest m2) = Nest (Par (Done (Wrap m1)) (Done (Wrap m2)))
-fork ::(Monad m) => Concurrent m b -> Concurrent m ()
+fork :: (Monad m) => Concurrent m b -> Concurrent m ()
 
 fork m = par (m >> kill) (act (return ()))
 
@@ -287,11 +287,12 @@ round (Nest w : as) = case w of
   Act m           -> do {a <- m; round ([Nest a] ++ as)}
   Par a b         -> round ([Nest b] ++ as ++[Nest a])
 
+
+{-
 instance (Monoid s) => MonadWriter s (Concurrent (Writer s)) where
   tell = act . tell
   listen = undefined
   pass = undefined
-
 
 
 cat ::Concurrent (Writer String) Int
@@ -305,18 +306,18 @@ fish' = replicateM 7 (tell "fish") >> return 2
 
 
 
-paraRun1 = round [ do 
+paraRun1 = round [ do
                     x <- fish `par` cat
                     tell "dog"
                     return x]
 
-paraRun2 = round [ do 
+paraRun2 = round [ do
                     fork fish
                     x <- cat
                     tell "dog"
                     return x]
 
-paraRun3 = round [ do 
+paraRun3 = round [ do
                     fork fish0
                     x <- cat
                     tell "dog"
@@ -332,3 +333,5 @@ newtype States s a = States {runStates :: s -> Trace s a}
 -- Monad (States s)
 -- MonadTrans (States s) (States s)
 -- MonadTrace (States s)
+
+-}
