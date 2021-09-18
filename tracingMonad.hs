@@ -8,7 +8,7 @@ module TracingMonad where
 
 import Prelude hiding (drop, round)
 import Data.List (nub)
-import Control.Monad.Writer (MonadWriter(..), Writer(..), liftM)
+import Control.Monad.Writer (MonadWriter(..), Writer(..), liftM, replicateM)
 
 
 -- https://arxiv.org/pdf/1202.2922.pdf
@@ -316,7 +316,7 @@ paraRun2 = round [ do
                     return x]
 
 paraRun3 = round [ do
-                    fork fish0
+                    fork fish
                     x <- cat
                     tell "dog"
                     return x]
