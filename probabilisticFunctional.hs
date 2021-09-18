@@ -6,7 +6,9 @@ module ProbabilisticFunctional where
 
 import Data.List (sort,sortBy,transpose, delete, (\\))
 import Control.Monad (Monad(..), MonadPlus(..))
-import System.Random
+import System.Random (randomRIO)
+
+
 
 type Probability = Float
   --deriving Show
@@ -109,7 +111,7 @@ switchedChoice :: Dist Outcome
 switchedChoice = firstChoice >>= switch'
 
 data Door = A | B | C
-  deriving (Eq, Enum)
+  deriving (Eq, Enum, Ord)
 
 doors :: [Door]
 doors = [A .. C]
@@ -117,6 +119,7 @@ doors = [A .. C]
 data State = Doors {prize :: Door,  -- contains the prize
                     chosen :: Door, -- is chosen
                     opened :: Door} -- is opened
+                    deriving (Eq, Ord)
 
 -- inital state
 start :: State
@@ -173,7 +176,7 @@ type Height = Int
 
 --- states of the tree
 data Tree = Alive Height | Hit Height | Fallen
-  deriving Show
+  deriving (Show, Ord, Eq)
 
 --- grows if alive between 1 and 5 every year
 grow :: Trans Tree
@@ -236,7 +239,7 @@ type R a = IO a
 type RChange a = a -> R a
 
 pick :: Dist a -> R a
-pick d = Random.randomRIO (0,1) >>= return . selectP d
+pick d = randomRIO (0,1) >>= return . selectP d
 
 random :: Trans a -> RChange a
 random t = pick . t
@@ -250,6 +253,137 @@ rDist :: Ord a => [R a] -> RDist a
 rDist = fmap (norm . uniform') . sequence
 
 
+class Sim c where
+  (~.) :: Ord a => Int -> (a -> c a) -> RTrans a
+  (~*.) :: Ord a => (Int,Int) -> (a -> c a) -> RTrans a
+  (~..) :: Ord a => (Int,Int) -> (a -> c a) -> RExpand a
+
+instance Sim IO where
+  (~.) n t = rDist . replicate n . t
+  (~*.) (k,n) t = k ~. (n *. t)
+  (~..) (k,n) t = mergeTraces . replicate k . rWalk n t
+
+instance Sim Dist where
+  (~.) n = (~.) n . random
+  (~*.) x = (~*.) x . random
+  (~..) x = (~..) x . random
+
+instance Iterate IO where
+  0 *. t = t
+  i *. t = (>>= t) . ((i-1) *. t)
+  while = undefined
+
+
+--- MontiHall randomized
+simEval :: Int -> Strategy -> RDist Outcome
+simEval k s = mapD result `fmap` (k ~. game s) start
+
+--- treeGrowth randomized
+simTreeGrowth :: Int -> Int -> Tree -> RDist Tree
+simTreeGrowth k n = k ~. treeGrowth n
+
+
+simTreeGrowth' :: Int -> Int -> Tree -> RDist Tree
+simTreeGrowth' k n = (k,n) ~*. evolve
+
+
+--- 5. Tracing and randomized tracing
+
+type Trace a = [a]
+type Space a = Trace (Dist a)
+type Walk a = a -> Trace a
+type Expand a = a -> Space a
+
+type Change a = a -> a
+
+walk :: Int -> Change a -> Walk a
+walk n f = take n . iterate f
+
+
+(*..) :: Int -> Trans a -> Expand a
+0 *.. _ = singleton . certainly
+1 *.. t = singleton . t
+n *.. t = t >>: ((n-1) *.. t)
+
+singleton :: a -> [a]
+singleton x = [x]
+
+
+(>>:) :: Trans a -> Expand a -> Expand a
+f >>: g = \x -> 
+            let ds@(D d:_)=g x in
+              D [(z,p*q) | (y,p) <- d,(z,q)<- unD (f y)]:ds
+
+type RTrace a = R (Trace a)
+type RSpace a = R (Space a)
+type RWalk a = a -> RTrace a
+type RExpand a = a -> RSpace a
+
+
+
+-- rWalk computes a list of values by
+-- randomly selecting one value from a distribution in each step.
+-- 
+rWalk :: Int -> RChange a -> RWalk a
+rWalk 0 _ = return . singleton
+rWalk 1 t = (>>= return . singleton) . t
+rWalk n t = composelR t (rWalk (n-1) t)
+
+--          (a -> m a) -> (a -> m [a]) -> (a -> m [a])
+composelR :: RChange a -> RWalk a -> RWalk a
+composelR f g x = do {rs@(r:_) <- g x; s <- f r; return (s:rs)}
+
+
+
+
+-- mergeTraces converts a list of RTraces, into a list of randomized 
+--             distributions, i.e., an RSpace, by creating a randomized
+--             distribution for each list position across all traces
+--
+mergeTraces :: Ord a => [RTrace a] -> RSpace a
+mergeTraces = fmap (zipListWith (norm . uniform)) . sequence
+              where
+                zipListWith :: ([a] -> b) -> [[a]] -> [b]
+                zipListWith f = map f . transpose
+
+
+--- simultaing TreeGrowth History
+treeGrowthHist :: Int -> Tree -> Space Tree
+treeGrowthHist n = n *.. evolve
+
+--- simultaing randomized TreeGrowth History
+simHist :: Int -> Int -> Tree -> RSpace Tree
+simHist k n = (k,n) ~.. evolve
+
+
+-- selecting from distributions
+-- 
+selectP :: Dist a -> Probability -> a
+selectP (D d) p = scanP p d
+
+scanP :: Probability -> [(a,Probability)] -> a
+scanP p ((x,q):ps) | p<=q || null ps = x
+                   | otherwise       = scanP (p-q) ps
+
+
+-- normalization = grouping
+-- 
+normBy ::  Ord a => (a -> a -> Bool) ->  Dist a -> Dist a
+normBy f = onD $ accumBy f . sort
+
+onD :: ([(a,Probability)] -> [(a,Probability)]) -> Dist a -> Dist a
+onD f  = D . f . unD
+
+accumBy :: Num b => (a -> a -> Bool) -> [(a,b)] -> [(a,b)]
+accumBy f ((x,p):ys@((y,q):xs)) | f x y     = accumBy f ((x,p+q):xs)
+                                | otherwise = (x,p):accumBy f ys
+accumBy _ xs = xs
+
+norm ::  Ord a => Dist a -> Dist a
+norm = normBy (==)
+
+norm' :: Ord a => [(a,Probability)] -> [(a,Probability)]
+norm' = accumBy (==) . sort
 
 
 
