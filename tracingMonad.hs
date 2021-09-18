@@ -8,7 +8,7 @@ module TracingMonad where
 
 import Prelude hiding (drop, round)
 import Data.List (nub)
-import Control.Monad.Writer (MonadWriter, Writer, liftM)
+import Control.Monad.Writer (MonadWriter(..), Writer(..), liftM)
 
 
 -- https://arxiv.org/pdf/1202.2922.pdf
@@ -288,12 +288,10 @@ round (Nest w : as) = case w of
   Par a b         -> round ([Nest b] ++ as ++[Nest a])
 
 
-{-
 instance (Monoid s) => MonadWriter s (Concurrent (Writer s)) where
   tell = act . tell
   listen = undefined
   pass = undefined
-
 
 cat ::Concurrent (Writer String) Int
 cat = replicateM 5 (tell "cat" >> mark) >> return 1
@@ -333,5 +331,3 @@ newtype States s a = States {runStates :: s -> Trace s a}
 -- Monad (States s)
 -- MonadTrans (States s) (States s)
 -- MonadTrace (States s)
-
--}
