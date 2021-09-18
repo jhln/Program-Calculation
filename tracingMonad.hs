@@ -316,7 +316,7 @@ paraRun2 = round [ do
                     return x]
 
 paraRun3 = round [ do
-                    fork fish
+                    fork fish'
                     x <- cat
                     tell "dog"
                     return x]
@@ -331,3 +331,4 @@ newtype States s a = States {runStates :: s -> Trace s a}
 -- Monad (States s)
 -- MonadTrans (States s) (States s)
 -- MonadTrace (States s)
+
