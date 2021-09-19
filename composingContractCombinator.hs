@@ -46,6 +46,12 @@ c4' = c1 `andGive` c2
 -}
 
 
+----- Give Combinator
+
+giveC :: Contract -> Contract
+giveC = undefined
+
+
 
 ----- Oberservables
 
@@ -79,6 +85,13 @@ konst :: a -> Obs a
 konst = Obs
 
 
+----- Zero Combinator
+
+zeroC :: Contract
+zeroC = undefined
+
+
+
 ----- temporal Combinator
 
 c7 = whenC (at t1) c6
@@ -92,6 +105,9 @@ at t = lift2 (==) date (konst t)
 
 lift2 :: (a -> b -> c) -> Obs a -> Obs b -> Obs c
 lift2 f (Obs a) (Obs b) = Obs $ f a b
+
+
+----- Contract Constructor
 
 zcbC :: Date -> Double -> Currency -> Contract
 zcbC t x k = whenC (at t) (scaleC (konst x) (oneC k))
@@ -126,4 +142,19 @@ c10 = condC (rainInCyrus %> 10) (oneC GBP) (oneC USD)
 
 ----- Conditional Combinator
 
-or :: Contract -> Contract -> Contract
+orC :: Contract -> Contract -> Contract
+orC = undefined
+
+c10' = zcbC t1 100 GBP `orC` zcbC t2 110 GBP
+
+
+c11 = europeanC 30424 $
+        (zcbC 30512 0.4 GBP) `andC`
+        (zcbC 30512 0.4 GBP) `andC`
+        (zcbC 30512 0.4 GBP) `andC`
+        (giveC $ zcbC 30426 100 GBP)
+
+europeanC :: Date -> Contract -> Contract
+europeanC t u = whenC (at t) $ u `orC` zeroC
+
+
