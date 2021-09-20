@@ -130,7 +130,7 @@ c9 = scaleC ((rainInCyrus - 7) * 1000) (oneC USD)
 (%<=) = lift2 (<=)
 (%==) = lift2 (==)
 (%>) = lift2 (>)
-
+(%>=) = lift2 (>=)
 
 ----- Conditional Combinator
 
@@ -156,5 +156,34 @@ c11 = europeanC 30424 $
 
 europeanC :: Date -> Contract -> Contract
 europeanC t u = whenC (at t) $ u `orC` zeroC
+
+
+----- anytime Combinator
+
+anytimeC :: Obs Bool -> Contract -> Contract
+anytimeC = undefined
+
+americanC (t1,t2) u = anytimeC (between t1 t2) u
+
+
+----- window Operator
+
+between :: Obs Date -> Obs Date -> Obs Bool
+between t1 t2 = lift2 (&&) (date %>= t1) (date %<= t2)
+
+
+----- until Combinator
+
+untilC :: Obs Bool -> Contract -> Contract
+untilC = undefined
+
+t1',t2' :: Obs Date
+t1' = undefined
+t2' = undefined
+
+c12 = untilC (interestRate %> konst 6) $ americanC (t1',t2') c1
+
+interestRate :: Obs Int
+interestRate = Obs 6
 
 
