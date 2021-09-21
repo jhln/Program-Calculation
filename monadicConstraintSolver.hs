@@ -50,11 +50,11 @@ instance Monad (Tree solver) where
   (>>=) = bind
 
 bind :: Tree solver a -> (a -> Tree solver b) -> Tree solver b
-(Return x) ‘bind‘ k = k x
-(NewVar f) ‘bind‘ k = NewVar (\v -> f v ‘bind‘ k)
-(Add c t) ‘bind‘ k = Add c (t ‘bind‘ k)
-Fail ‘bind‘ k = Fail
-(Try l r) ‘bind‘ k = Try (l ‘bind‘ k) (r ‘bind‘ k)
+(Return x) `bind` k = k x
+(NewVar f) `bind` k = NewVar (\v -> f v `bind` k)
+(Add c t) `bind` k = Add c (t `bind` k)
+Fail `bind` k = Fail
+(Try l r) `bind` k = Try (l `bind` k) (r `bind` k)
 
 
 true = Return ()
