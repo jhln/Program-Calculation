@@ -25,7 +25,8 @@ executable ProgramCalculation
                        containers,
                        mtl,
                        array,
-                       random
+                       random,
+                       sort
                       
   -- hs-source-dirs:
   default-language:    Haskell2010
