@@ -1,5 +1,9 @@
 module ExplainableDynamicProgramming where
 
+-- https://github.com/prashant007/XDP
+-- http://hackage.haskell.org/package/DP
+
+
 import Data.Sort
 import Data.Ord
 import Data.Function
@@ -85,3 +89,26 @@ fibS n = do
 
 fib' :: Integer -> Integer
 fib' n = fst (runState (fibS n) [])
+
+class Semiring a where
+  zero, one :: a
+  (<+>), (<.>) :: a -> a -> a
+
+ssum :: Semiring a => [a] -> a
+ssum = foldr (<+>) zero
+
+instance Semiring Integer where
+  zero = 0
+  one = 1
+  (<+>) = (+)
+  (<.>) = (*)
+
+{-
+fibT :: DP Integer Integer
+fibT 0 = zero
+fibT 1 = one
+fibT n = memo (n-1) <+> memo (n-2)
+
+fibDT :: Integer -> Integer
+fibDT n = runDP fibT n
+-}
