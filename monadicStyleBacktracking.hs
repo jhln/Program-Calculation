@@ -2,6 +2,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes #-}
 
 module MonadicStyleBacktracking where
 
@@ -82,7 +84,8 @@ accepts p s = do
 
 
 person :: ( MonadPlus m ) => m String
-person = return "abraham" ++ return "lot" 
+person = return "abraham" 
+      ++ return "lot" 
       ++ return "milcah" 
       ++ return "nachor"
       ++ return "sarah" 
@@ -117,8 +120,7 @@ f +++ g = \ a -> (f a ++ g a)
 transitiveClosure' :: (MonadPlus m) => (a -> m a) -> (a -> m a)
 transitiveClosure' m = ( return +++ transitiveClosure' m ) `at` m
 
--- query1 = run ( descendant "terach" :: BacktrM String ) :: [] String
-
+query1 = run ( descendant "terach" :: BacktrML String ) :: [] String
 
 
 
@@ -243,7 +245,6 @@ class (Monad m,  Monad (t m)) => MonadT t m where
   up :: m a -> t m a
   down :: t m a -> m a
 
-
 instance (Monad (t m), MonadZero m, MonadT t m) => MonadZero (t m) where
   zero = up zero
 
@@ -252,6 +253,8 @@ instance (MonadState st m, MonadT t m) => MonadState st ( t m ) where
 
 instance (MonadT t m, Run m n) => Run (t m) n where
   run = run . down
+
+
 
 
 ------ 3.2 State Monad Transformers
@@ -296,8 +299,9 @@ instance (MonadPlus m) => MonadPlus (StateT st m) where
   (StateT m) ++ (StateT n) = StateT $ \s -> (m s ++ n s)
 
 
------- 3.3 Maybe Transformers
 
+
+------ 3.3 Maybe Monad
 
 data Maybe a 
   = Nothing 
@@ -323,3 +327,57 @@ instance MonadPlus Maybe where
 
 type ParserM tok = StateT [tok] Maybe
 type BacktrM = Maybe -- does not work
+
+
+
+------ 3.3 List Monad
+
+list :: b -> (a -> b -> b) -> [a] -> b
+list e (*) [] = e
+list e (*) (a:as) = a * list e (*) as
+
+instance MonadZero [] where
+  zero = []
+instance MonadPlus [] where
+  m ++ n = list n (:) m
+
+type BacktrML = []
+type ParserML tok = StateT [tok] []
+
+
+
+------- 4. Efficient backtracking monads
+
+data Tree a 
+  = Empty 
+  | Node (Tree a) a (Tree a)
+
+
+data EndoT m a = EndoT {proj :: m a -> m a}
+
+{-
+--type EndoT m a = m a -> m a
+
+instance (MonadPlus m) => Monad (EndoT m) where
+  m >>= k = \f -> (m zero >>= \a -> k a zero) ++ f
+  return a = \f -> return a ++ f
+
+instance (MonadPlus m) => MonadT EndoT m where
+  up m = \f -> m ++ f
+  down m = m zero
+
+--instance MonadZero (EndoT m) where
+--  zero = id
+instance MonadPlus (EndoT m) where
+  m ++ n = m . n
+-}
+
+
+type ContT m a = forall ans . ( a -> m ans ) -> m ans
+{-
+instance (Monad m) => Monad (ContT m) where
+  m >>= k = \f -> m (\a -> k a f)
+  return a = \f -> f a
+-}
+
+
