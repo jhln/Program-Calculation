@@ -381,3 +381,35 @@ instance (Monad m) => Monad (ContT m) where
 -}
 
 
+---- 4.4 Backtracking Monad Transformer
+
+type Cps a ans = (a -> ans) -> ans
+type Endo ans = ans -> ans
+
+--type BacktrT m a = forall ans.Cps a (Endo (m ans))
+data BacktrT m a = BacktrT { runBacktrT :: forall ans.Cps a (Endo (m ans))}
+
+instance (MonadZero m) => Functor (BacktrT m) where
+  fmap f m = m >>= return . f
+instance (MonadZero m) => Applicative (BacktrT m) where
+  pure = return
+  xf <*> xa = xf >>= (\f -> xa >>= (\a -> return (f a)))
+--  f <*> v = do f' <- f; v' <- v; return $ f' v'
+instance (MonadZero m) => Monad (BacktrT m) where
+--  return a = \c -> c a
+  return a = BacktrT $ \c -> c a
+--    m >>= k = \c -> m (\a -> k a c)
+  m >>= k = BacktrT $ \c -> do 
+              -- runBacktrT m (\a -> k c)
+              return zero -- just for compiling
+-- instance MonadZero (BacktrT m) where
+--  zero = BacktrT $ \c -> id
+
+{-
+instance (Monad m) => MonadT (BacktrT) m where
+  up m = \c f -> ( m >>= \a -> c a zero) ++ f
+  down m = m (\a f -> return a ++ f) zero
+
+instance MonadPlus (BacktrT m) where
+  m ++ n = \c -> m c . n c
+-}
