@@ -26,7 +26,8 @@ executable ProgramCalculation
                        mtl,
                        array,
                        random,
-                       sort
+                       sort,
+                       splitmix
                       
   -- hs-source-dirs:
   default-language:    Haskell2010
