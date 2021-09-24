@@ -3,10 +3,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module MonadicSolver001  where
 
 import Control.Monad.State.Lazy
+import Data.Maybe (fromJust,isJust)
 import Prelude hiding (lookup, null)
 import Data.Map ((!), Map)
 import Data.IntSet (IntSet)
@@ -78,12 +80,7 @@ addFD (FD_NEq e1 e2)                    = e1 ./=. e2
 -- addFD (FD_AllDiff vs)                   = allDifferent (map un_fd vs)
 addFD (FD_Dom v (l,u))                  = v `in_range` (l-1,u+1)
 
-{-
--- Run the FD monad and produce a lazy list of possible solutions.
-runFD :: FD a -> a
-runFD fd = fromJust $ evalStateT (unFD fd') initState
-           where fd' = fd -- fd' = newVar () >> fd
--}
+
 
 data FD_Term where
   FD_Var :: FDVar -> FD_Term
@@ -96,15 +93,15 @@ newtype FDVar = FDVar { unFDVar :: Int } deriving (Ord, Eq, Show)
 
 newtype Expr = Expr { unExpr :: FD (FDVar) }
 class ToExpr a where
-    toExpr :: a -> Expr
+  toExpr :: a -> Expr
 instance ToExpr FD_Term where
   toExpr (FD_Var v) = toExpr v
 instance ToExpr FDVar where
-    toExpr = Expr . return
+  toExpr = Expr . return
 instance ToExpr Expr where
-    toExpr = id
+  toExpr = id
 instance Integral i => ToExpr i where
-    toExpr n = Expr $ newVar n
+  toExpr n = Expr $ newVar n
 
 exprVar :: ToExpr a => a -> FD FDVar
 exprVar = unExpr . toExpr
@@ -135,6 +132,23 @@ data Domain
 class ToDomain a where
     toDomain :: a -> Domain
 
+instance ToDomain Domain where
+    toDomain = id
+
+instance ToDomain IntSet where
+    toDomain = Set
+
+instance Integral a => ToDomain [a] where
+    toDomain = toDomain . IntSet.fromList . map fromIntegral
+
+instance (Integral a, Integral b) => ToDomain (a, b) where
+    toDomain (a, b) = Range (fromIntegral a) (fromIntegral b)
+
+instance ToDomain () where
+    toDomain () = Range minBound maxBound
+
+
+
 newVar :: ToDomain a => a -> FD FDVar
 newVar d = do
     s <- get
@@ -153,6 +167,17 @@ newVars :: ToDomain a => Int -> a -> FD [FDVar]
 newVars n d = replicateM n (newVar d)
 
 
+
+-- Run the FD monad and produce a lazy list of possible solutions.
+runFD :: FD a -> a
+runFD fd = fromJust $ evalStateT (unFD fd') initState
+           where fd' = fd -- fd' = newVar () >> fd
+
+initState :: FDState
+initState = FDState { varSupply = FDVar 0, varMap = Map.empty, objective = FDVar 0 }
+
+
+--------- Constraint Lib
 
 -- Constrain two variables to have different values.
 different :: FDVar  -> FDVar  -> FD Bool
@@ -276,6 +301,7 @@ addBinaryConstraint f x y = do
     b <- constraint 
     when b $ (do addConstraint x constraint
                  addConstraint y constraint)
+    return b
 
 
 -- Add a new constraint for a variable to the constraint store.
