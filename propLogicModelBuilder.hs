@@ -219,3 +219,8 @@ instance Arbitrary Char where
 
 
 test6 = generate (arbitrary :: Gen Form)
+
+--- sized missing
+
+sized :: (Int -> Gen a) -> Gen a
+sized f = MkGen (\r n -> let MkGen m = f n in m r n)

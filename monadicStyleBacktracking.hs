@@ -4,6 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module MonadicStyleBacktracking where
 
@@ -121,7 +122,6 @@ transitiveClosure' :: (MonadPlus m) => (a -> m a) -> (a -> m a)
 transitiveClosure' m = ( return +++ transitiveClosure' m ) `at` m
 
 query1 = run ( descendant "terach" :: BacktrML String ) :: [] String
-
 
 
 ----- 8 queens problem
@@ -277,12 +277,11 @@ instance (Monad m) => Monad (StateT st m) where
 instance (Monad m) => MonadState st (StateT st m) where
   update st = StateT $ \s -> return (st s, s)
 
-
 instance (Monad m ) => MonadT ( StateT st ) m where
   up m = StateT $ \s -> do
                           a <- m
                           return (s, a)
-  down m =  undefined -- m >>= \(st, a) -> return a
+  down m = runStateT m undefined >>= \(st, a) -> return a
     
 
 {-
@@ -400,16 +399,48 @@ instance (MonadZero m) => Monad (BacktrT m) where
   return a = BacktrT $ \c -> c a
 --    m >>= k = \c -> m (\a -> k a c)
   m >>= k = BacktrT $ \c -> do 
-              -- runBacktrT m (\a -> k c)
-              return zero -- just for compiling
--- instance MonadZero (BacktrT m) where
---  zero = BacktrT $ \c -> id
+              runBacktrT m (\a -> runBacktrT (k a) c)
+              --return zero -- just for compiling
+--instance (MonadZero m, Monad (t m), MonadT t m) => MonadZero (BacktrT m) where
+  --zero = BacktrT $ \c -> id
+instance (MonadPlus m) => MonadPlus (BacktrT m) where
+  m ++ n = BacktrT $ \c ->  runBacktrT m c . runBacktrT n c
+{-
+instance (Monad m, MonadZero m, MonadPlus m) => MonadT (BacktrT) m where
+  --up m = \c f -> ( m >>= \a -> c a zero) ++ f
+  up m = BacktrT $ \c f -> ( m >>= \a -> c a zero) ++ f
+  down m = runBacktrT m (\a f -> return a ++ f) zero
+-}
+instance (Monad m, MonadZero m) => MonadT (BacktrT) m where
+  up m = BacktrT $ \c f -> m >>= \a -> c a f
+  down m = runBacktrT m (\a _ -> return a) (error "no solution")
+
+class (Monad m) => MonadIO m where
+  outStr :: String -> m ()
+  inFile :: FilePath -> m String
+instance MonadIO IO where
+  outStr = putStr
+  inFile = readFile
+instance (MonadIO m, MonadT t m, Monad (t m)) => MonadIO (t m) where
+  outStr = up . outStr
+  inFile = up . inFile
+
+trace :: (MonadPlus m, MonadIO m) => m a -> String -> m a
+trace m msg = do 
+  (out "call" ++ do out "fail"; zero )
+  a <- m
+  (out "exit" ++ do out "redo" ; zero )
+  return a
+  where 
+    out s = outStr ( s ++ ": " ++ msg ++ "\n" )
+
+
+tchild a = trace (child a) ("child " ++ show a)
 
 {-
-instance (Monad m) => MonadT (BacktrT) m where
-  up m = \c f -> ( m >>= \a -> c a zero) ++ f
-  down m = m (\a f -> return a ++ f) zero
-
-instance MonadPlus (BacktrT m) where
-  m ++ n = \c -> m c . n c
+query4 = run (
+  ( do 
+      transitiveClosure' tchild "terach"
+      zero ) :: BacktrT IO String 
+  ) :: IO String
 -}
