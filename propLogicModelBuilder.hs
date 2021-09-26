@@ -46,6 +46,9 @@ tableau (p :&: q) val   = [ val''
                             val'' <- tableau q val']
 tableau (Not (p :&: q)) val   
     = tableau (Not p) val ++ tableau (Not q) val
+tableau (Not (Not f)) val = tableau f val
+--tableau (Not f) val = tableau f (val {trues = falses val, falses = tures val})
+
 
 models :: Form -> [Valuation]
 models p = tableau p nothing

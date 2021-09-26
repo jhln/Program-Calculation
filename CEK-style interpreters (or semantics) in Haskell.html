@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+ <title>Writing CEK-style interpreters (or semantics) in Haskell
+</title>
+
+ <link rel="alternate" type="application/rss+xml" title="RSS" href="http://matt.might.net/articles/feed.rss" />
+
+ <link rel="stylesheet" href="../../css/raised-paper-2.css" /> 
+
+
+ <meta name="viewport" content="width=480, initial-scale=1" />
+ <link rel="stylesheet" media="screen and (max-device-width: 480px)" href="../../css/raised-paper-2-handheld.css" />
+
+ <script type="text/javascript" src="../../matt.might.js"></script>
+ <script type="text/javascript">
+  var ArticleVersion = 2 ;
+ </script>
+ <script>
+ <!--
+  include("article-style.js");
+ //-->
+ </script>
+ <script type="text/javascript" src="../manifest.js"></script>
+ <script type="text/javascript" src="../index-manifest.js"></script>
+
+ <script type="text/javascript">
+ <!--
+//  var Key = "[an error occurred while processing the directive]";
+ var Pathname = location.pathname ;
+ var PathParts = Pathname.split(/\//) ;
+ var Key = PathParts[PathParts.length-1] ;
+ if (Key == "")
+  Key = PathParts[PathParts.length-2] ;
+ //-->
+ </script>
+
+</head>
+
+
+
+<body>
+
+<div id="body">
+
+
+
+
+
+
+
+<div id="abstract-container" class="module">
+<div id="abstract-content" class="fat-content">
+
+ <h1>Writing CEK-style interpreters (or semantics) in Haskell
+</h1>
+
+ <div>
+ [<a href="../">article index</a>]
+ [<script>
+       var emailMatt = '<a href="mai'+'lto:matt-blog'+'@'+'migh'+'t.net">email me</a>'
+document.write(emailMatt);
+ //-->
+</script>] 
+ [<a href="http://twitter.com/mattmight">@mattmight</a>]
+ [<a href="../feed.rss">rss</a>]
+ </div>
+
+ 
+
+<p>
+The CEK machine is a mechanical model of the lambda-calculus
+developed by 
+<a href="http://www.ccs.neu.edu/home/matthias/">Matthias Felleisen</a> and
+<a href="https://www.cs.indiana.edu/~dfried/">Dan Friedman</a>.</p>
+
+<p>
+As a mechanical model, the CEK  machine provides a
+realistic yet abstract
+description of how a computer would efficiently 
+execute a program.
+</p>
+
+<center>
+<img src="http://matt.might.net/articles/cek-machines/images/cek-machine.jpg" width="400" />
+<br />
+<em>According to Google image search,
+this is also a CEK machine.</em>
+</center>
+
+<p>
+CEK machines are a natural
+design strategy for 
+writing interpreters.
+</p>
+
+<p>
+Besides being efficient,
+CEK-style interpreters have many useful properties:
+</p>
+
+<ul>
+ 
+ <li>It's easy to add complex language features like
+ continuations.</li>
+
+ <li>It's easy to freeze interpretation and get a stack trace.</li>
+
+ <li>It's easy to introduce threads into the language (or fake them!)</li>
+
+ <li>And, it's easy to step execution in a debugger.</li>
+
+</ul>
+
+<p>
+My collaborator <a href="http://www.ccs.neu.edu/home/dvanhorn/">David Van Horn</a> and I have recently
+<a href="http://matt.might.net/papers/vanhorn2010abstract.pdf">discovered</a> that CEK machines make an excellent
+starting point for static analysis as well.
+</p>
+
+<p>
+Read below for an
+introduction to the CEK machine
+with code in Haskell.
+</p>
+
+<p>
+[If you like the tip of this iceberg,
+I strongly recommend 
+the recent book on
+<a href="http://www.amazon.com/gp/product/0262062755/ref=as_li_ss_tl?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262062755">Semantics Engineering</a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262062755&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+by Felleisen, Findler and Flatt.]
+</p>
+
+
+  
+</div> <!-- /#content -->
+</div> <!-- /#content-container -->
+
+
+
+
+  
+<div id="content-container" class="module">
+<div id="article-content">
+
+  <script type="text/javascript">
+<!--
+// Might.enableSyntaxHighlighting("Haskell") ;
+//-->
+</script>
+
+
+<h2>Background: &lambda;-calculus</h2>
+
+<p>
+If you're not yet familiar with the lambda-calculus, or 
+if you don't fully appreciate its universality as a programming language,
+  you might want to first read a couple other blog posts before
+  charging ahead:
+</p>
+
+<ul>
+<script>
+RenderTagLinks("lambda-calculus") ;
+</script>
+</ul>
+
+<p>
+Or, grab Benjamin Pierce's
+<a href="http://www.amazon.com/gp/product/0262162091/ref=as_li_ss_tl?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262162091">Types and Programming Languages</a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262162091&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />,
+which has a full, detailed treatment
+of the lambda-calculus:
+</p>
+
+<div class="graphic">
+<a href="http://www.amazon.com/gp/product/0262162091/ref=as_li_ss_il?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262162091"><img border="0" src="http://ws.assoc-amazon.com/widgets/q?_encoding=UTF8&Format=_SL160_&ASIN=0262162091&MarketPlace=US&ID=AsinImage&WS=1&tag=mmamzn06-20&ServiceVersion=20070822" ></a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262162091&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+</div>
+
+
+
+<p>
+For the machine below, we'll import
+a <code>Syntax</code> module containing an abstract syntax tree datatype for
+the lambda-calculus:
+</p>
+
+
+<pre>
+type Var = String
+
+data Lambda = Var :=&gt; Exp
+
+data Exp = Ref Var      
+         | Lam Lambda   
+         | Exp :@ Exp  
+</pre>
+
+<p>
+This table shows how to encode 
+expressions from the lambda-calculus:
+</p>
+
+<center>
+<table>
+ 
+ <tr>
+ <td><b>&lambda;-calculus</b>&nbsp;&nbsp;</td>
+ <td><b><code>Exp</code> encoding</b></td>
+ </tr>
+
+ <tr>
+ <td>
+ <i>v</i>
+ </td>
+ <td>
+ <code>Ref "<i>v</i>"</code>
+ </td>
+ </tr>
+
+ <tr>
+ <td>
+ &lambda;<i>v</i> . <i>e</i>
+ </td>
+ <td>
+ <code>Lam ("<i>v</i>" :=&gt; <i>e</i>)</code>
+ </td>
+ <tr>
+
+ <tr>
+ <td>
+ <i>f</i>(<i>e</i>)
+ </td>
+ <td>
+ <code><i>f</i> :@ <i>e</i></code>
+ </td>
+
+ </tr>
+
+</table>
+</center>
+
+
+
+<!--
+<h2>A note on GHC extensions</h2>
+
+<p>
+To get the code looking as much like
+formal mathematics, some of the code below turns
+on some extra syntactic sugar via GHC extensions.
+</p>
+
+<p>
+Specifically, you should compile it with the 
+<code>-XTypeOperators</code>
+flags for ghc.
+</p>
+
+<p>
+We use this for defining map types:
+</p>
+
+<pre>
+import Data.Map
+
+type k :-&gt; v = Map k v
+</pre>
+
+<p>
+so that the code can use <code>k :-&gt; v</code>
+instead of <code>Map k v</code>.
+</p>
+-->
+
+<h2>A word on idiomatic Haskell</h2>
+
+
+<p>
+Most of the Haskell in this article is not idiomatic.
+</p>
+
+<p>
+For examples, data constructors take tuples
+instead of expanding the components into
+fields.
+</p>
+
+<p>
+I took this route to keep the 
+code as aesthetically close to the underlying
+formal mathematics as possible.
+</p>
+
+
+<h2>The setting: State machines</h2>
+
+<p>
+Before we implement an interpreter as a CEK machine, 
+let's look at 
+ state machines in general,
+and how they can encode an interpreter.
+</p>
+
+
+<p>
+Mathematically, a state machine is a state-space paired with
+a transition relation 
+that relates each state to its subsequent states.
+</p>
+
+<p>
+In code, a state-space is a type.
+Values of that type are states.
+</p>
+
+<p>
+We'll use the typename <code>&Sigma;</code> for the state-space.
+</p>
+
+
+
+<p> In the simple case, which holds for the CEK machine, the transition
+relation is deterministic, so a function
+from one state to another models it fully.  </p>
+
+<p>
+We'll use the name <code>step</code> for the 
+transition relation rendered as a function:
+</p>
+
+<pre>
+step :: &Sigma; -&gt; &Sigma;
+</pre>
+
+<p>
+To "execute" a deterministic state-machine,
+we want to move from state to state until
+we hit a "final" state.
+</p>
+
+<p>
+The function terminal does this:
+</p>
+
+<pre>
+terminal :: (&Sigma; -&gt; &Sigma;) -&gt; (&Sigma; -&gt; Bool) -&gt; &Sigma; -&gt; &Sigma;
+terminal step isFinal ς0 | isFinal ς0 = ς0
+                         | otherwise  = terminal step isFinal (step(ς0))
+</pre>
+
+<p>
+The function <code>terminal</code>
+takes
+the deterministic transition relation <code>step</code>;
+the predicate <code>isFinal</code>
+that indicates whether a state has no successor;
+and the initial state <code>ς0</code> from
+which to start.
+</p>
+
+<p>
+To model an interpreter as a state machine,
+we need an <code>inject</code> function
+that maps a program into a state:
+</p>
+
+<pre>
+inject :: Program -&gt; &Sigma;
+</pre>
+
+<p>
+In the case of the lambda-calculus,
+<code>type Program = Exp</code>.
+</p>
+
+<p>
+Then, to use <code>terminal</code>, we need a
+final-state detector:
+</p>
+
+<pre>
+isFinal :: &Sigma; -&gt; Bool
+</pre>
+
+
+<p>
+Now it's easy to define the evaluation function:
+</p>
+
+<pre>
+evaluate :: Program -&gt; &Sigma;
+evaluate pr = terminal step isFinal (inject(pr)) 
+</pre>
+
+<p>
+The evaluator maps a program to its final state (or never terminates
+if the program is non-terminating).
+</p>
+
+
+
+<h2>The CEK machine</h2>
+
+<p>
+There are only three components of a state in a CEK machine:
+a control component, an environment component, and a continuation component.
+</p>
+
+<p>
+The control component is the expression currently being 
+evaluated.
+</p>
+
+<p>
+The environment component is a map from variables to values.
+
+The environment is the local evaluation context of the expression.
+</p>
+
+<p>
+The continuation component is a stack 
+of frames.
+
+The continuation is the dynamic evaluation context of the expression.
+
+Each frame marks a context awaiting the value of an expression.
+</p>
+
+<p>
+In Haskell, the state-space (&Sigma;) is a triple:
+</p>
+
+<pre>
+type Σ    = (Exp,Env,Kont)
+data D    = Clo (Lambda, Env)
+type Env  = Var -&gt; D
+data Kont = Mt
+          | Ar (Exp,Env,Kont)
+          | Fn (Lambda,Env,Kont)
+</pre>
+
+<p>
+The type <code>D</code> contains values.
+
+For the basic lambda-calculus, there is only one kind of value: the closure.
+
+A closure is a lambda term paired with an environment that defines
+the values of its free variables.
+</p>
+
+<p>
+If we wanted to add more values to the language, like integers or strings,
+they would show up as variants in the datatype <code>D</code>.
+</p>
+
+<p>
+(The choice of the name <code>D</code> 
+is rooted in the history of programming languages.
+It means both the "domain of values" and "denotable values.")
+</p>
+
+<p>
+There are three kinds of continuations: 
+the empty continuation (<code>Mt</code>),
+the "I hold an argument to evaluate" continuation
+(<code>Ar</code>) and the 
+"I contain an evaluated function, and now I'm evaluating
+an argument term" continuation (<code>Fn</code>).
+</p>
+
+<p>
+To use this machine, 
+we first inject expressions into states:
+</p>
+
+<pre>
+inject :: Exp -&gt; Σ
+inject (e) = (e, ρ0, Mt)
+ where ρ0 :: Env
+       ρ0 = \ x -&gt; error $ "no binding for " ++ x
+</pre>
+
+
+<p>
+The <code>step</code> function moves execution
+forward by one step:
+</p>
+
+<pre>
+step :: Σ -&gt; Σ
+
+step (Ref x, ρ, κ)                    
+   = (Lam lam,ρ',κ) where Clo (lam, ρ') = ρ(x)
+
+step (f :@ e, ρ, κ)                  
+   = (f, ρ,  Ar(e, ρ, κ))
+
+step (Lam lam, ρ, Ar(e, ρ', κ))      
+   = (e, ρ', Fn(lam, ρ, κ))
+
+step (Lam lam, ρ, Fn(x :=&gt; e, ρ', κ)) 
+   = (e, ρ' // [x ==&gt; Clo (lam, ρ)], κ)
+</pre>
+
+
+
+<p>
+A few auxiliary definitions 
+handle function extension in this code:
+</p>
+
+<pre>
+(==&gt;) :: a -&gt; b -&gt; (a,b)
+(==&gt;) x y = (x,y)
+
+
+(//) :: Eq a =&gt; (a -&gt; b) -&gt; [(a,b)] -&gt; (a -&gt; b)
+(//) f [(x,y)] = \ x' -&gt;
+                 if (x == x') 
+                 then y
+                 else f(x')
+</pre>
+
+<p>
+Given a function 
+<code>f :: a -&gt; b</code>,
+the function <code>f // [x ==&gt; y]</code>
+is the identical to the function <code>f</code>,
+except that if given <code>x</code>
+it returns <code>y</code>.
+</p>
+
+
+
+<p>
+We can describe the four cases
+for <code>step</code> informally:
+</p>
+
+<ul>
+ <li>Evaluating a reference?
+ Look it up in the environment.
+ </li>
+
+ <li>
+ Evaluating a function application?
+ First evaluate the function.
+ </li>
+
+ <li>
+ Evaluated the function?
+ Go evaluate the argument term.
+ </li>
+
+ <li>
+ Evaluated 
+ the argument too?
+ Perform the application.
+ </li>
+</ul>
+
+
+<p>
+Recognizing final states is easy--just check
+for the empty continuation:
+</p>
+
+<pre>
+isFinal :: Σ -&gt; Bool
+isFinal (Lam _, ρ, Mt) = True
+isFinal _              = False
+</pre>
+
+
+<p>
+And, that's it.
+</p>
+
+
+<p>
+Adding more language features consists mostly of
+adding new kinds of expressions and 
+continuations corresponding to their contexts.
+</p>
+
+<p> To handle side effects in an interpreter, you can use side effects in the
+host language, or if the host language is pure (like math or Haskell), you can upgrade to
+a CESK machine.  </p>
+
+<p>
+I'll treat CESK machines in a future post.
+</p>
+
+
+<h2>More resources</h2>
+
+<p>
+<a href="http://www.amazon.com/gp/product/0262062755/ref=as_li_ss_tl?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262062755">Semantics Engineering with PLT Redex</a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262062755&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+
+is an entire book 
+by Matthias Felleisen, Robby Findler and Matthew Flatt
+on modeling
+programming languages (and their complex features)
+with machines:
+</p>
+
+<div class="graphic">
+<a href="http://www.amazon.com/gp/product/0262062755/ref=as_li_ss_il?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262062755"><img border="0" src="http://ws.assoc-amazon.com/widgets/q?_encoding=UTF8&Format=_SL160_&ASIN=0262062755&MarketPlace=US&ID=AsinImage&WS=1&tag=mmamzn06-20&ServiceVersion=20070822" ></a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262062755&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+</div>
+
+<p>
+The best part? 
+The formal mathematics are encoded in the Redex module for Racket 
+so you can <em>execute</em> the mathematics.
+</p>
+
+<p>
+Redex also comes with automated testing tools that can (and will)
+find bugs in your language implementation.
+</p>
+
+<p>
+The classic MIT textbook 
+
+<a href="http://www.amazon.com/gp/product/0262510871/ref=as_li_ss_tl?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262510871">Structure and Interpretation of Computer Programs</a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262510871&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+
+is essentially a textbook on interpreters:
+
+</p>
+
+<div class="graphic">
+<a href="http://www.amazon.com/gp/product/0262510871/ref=as_li_ss_il?ie=UTF8&tag=mmamzn06-20&linkCode=as2&camp=217145&creative=399369&creativeASIN=0262510871"><img border="0" src="http://ws.assoc-amazon.com/widgets/q?_encoding=UTF8&Format=_SL160_&ASIN=0262510871&MarketPlace=US&ID=AsinImage&WS=1&tag=mmamzn06-20&ServiceVersion=20070822" ></a><img src="http://www.assoc-amazon.com/e/ir?t=&l=as2&o=1&a=0262510871&camp=217145&creative=399369" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+</div>
+
+
+
+<h2>Related posts</h2>
+
+<ul>
+<script>
+RenderTagLinks("pl") ;
+</script>
+</ul>
+
+
+<script type="text/javascript">
+<!--
+// SyntaxHighlighter.all() ;
+//-->
+</script>
+  
+
+ <hr />
+
+ <div id="footer-links">
+ [<a href="../">article index</a>]
+ [<script>
+       var emailMatt = '<a href="mai'+'lto:matt-blog'+'@'+'migh'+'t.net">email me</a>'
+document.write(emailMatt);
+ //-->
+</script>] 
+ [<a href="http://twitter.com/mattmight">@mattmight</a>]
+ [<a href="../feed.rss">rss</a>]
+ </div>
+
+
+  
+</div> <!-- /#content -->
+</div> <!-- /#content-container -->
+
+
+
+
+
+
+<div id="footer-linode" class="module fat-container">
+ <div class="fat-content"> 
+ <center>
+ matt.might.net is powered by <b><a href="http://www.linode.com/?r=bf5d4e7c8a1af61855b5227279a6744c3bde8a8a">linode</a></b> | 
+   <a href="../legal/">legal information</a>
+ </center>
+ </div>
+</div>
+
+
+
+
+
+
+</div> <!-- /#body -->
+
+
+
+
+
+
+<script type="text/javascript">
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script>
+<script type="text/javascript">
+var pageTracker = _gat._getTracker("UA-3661244-1");
+pageTracker._trackPageview();
+</script>
+
+
+
+
+</body>
+
+</html>
