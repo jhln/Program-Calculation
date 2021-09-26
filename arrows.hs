@@ -2,7 +2,7 @@ module Arrows where
 
 --- https://www.haskell.org/arrows/
 
-import Prelude hiding (pure)
+import Prelude hiding (pure, Either, Left, Right)
 
 --- 10.1 Notions of Computation
 
@@ -134,3 +134,96 @@ addA :: Arrow a => a b Int -> a b Int -> a b Int
 addA f g = f &&& g >>> (pure $ uncurry (+))
 
 
+------ 10.2 Special cases and facilities
+
+
+curryA :: Arrow a => a (b,c) d -> b -> a c d
+curryA f b = mkPair b >>> f
+
+mkPair :: Arrow a => b -> a c (b,c)
+mkPair b = pure $ \c -> (b,c)
+
+
+--- Monads
+class Arrow a => ArrowApply a where
+  app :: a (a c d, c) d
+
+instance ArrowApply (->) where
+  app (f,c) = f c
+
+--- Conditionals
+data Either a b  
+  = Left a
+  | Right b
+
+(.+.) :: (a -> a') -> (b -> b') -> Either a b -> Either a' b'
+(f .+. g) (Left a) = Left $ f a
+(f .+. g) (Right b) = Right $ g b
+
+
+class Arrow a => ArrowChoice a where
+  left :: a b c -> a (Either b d) (Either c d)
+
+right :: ArrowChoice a => a b c -> a (Either d b) (Either d c)
+right f = pure mirror >>> left f >>> pure mirror
+  where
+    mirror (Left x) = Right x
+    mirror (Right y) = Left y
+
+assocsum :: Either (Either a b ) c -> Either a (Either b c)
+assocsum (Left (Left a)) = Left a
+assocsum (Left (Right b)) = Right $ Left b
+assocsum (Right c) = Right $ Right c
+
+distr :: (Either a b, c) -> Either (a,c) (b,c)
+distr (Left a, c) = Left (a,c)
+distr (Right b,c) = Right (b,c)
+
+(<+>) :: ArrowChoice a => a b c -> a b' c' -> a (Either b b') (Either c c')
+f <+> g = left f >>> right g
+
+(|||) :: ArrowChoice a => a b d -> a c d -> a (Either b c) d
+f ||| g = f <+> g >>> pure untag
+  where 
+    untag (Left x) = x
+    untag (Right y) = y
+
+
+instance ArrowChoice (->) where
+  left f = f .+. id
+
+instance ArrowChoice Auto where
+  left (A f) = A lf
+    where
+      lf (Left b) = let (c,f') = f b
+                    in (Left c, left f')
+      lf (Right d) = (Right d, left $ A f)
+
+
+--- Feedback
+
+trace :: ((b,d) -> (c,d)) -> b -> c
+trace f b = let (c,d) = f (b,d) in c
+
+
+class Arrow a => ArrowLoop a where
+  loop :: a (b,d) (c,d) -> a b c
+
+
+instance ArrowLoop (->) where
+  loop = trace
+
+
+instance ArrowLoop (State r) where
+  loop (ST f) = ST $ trace $ unassoc . f . assoc
+
+instance ArrowLoop (MapTrans r) where
+  loop (MT f) = MT $ trace $ unzipMap . f . zipMap
+
+instance ArrowLoop Auto where
+  loop (A f) = A $ \b -> let
+                          ((c,d), f') = f (b,d)
+                         in (c, loop f')
+
+
+--- 10.3 Arrow notation
