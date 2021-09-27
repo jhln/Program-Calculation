@@ -13,5 +13,5 @@ jobs:
           ghc-version: latest
           stack-version: latest
           cabal-version: latest
-      - run: stack build
+      - run: ghc algebraicGraphs.hs
         shell: bash
