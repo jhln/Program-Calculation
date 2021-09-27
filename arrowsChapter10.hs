@@ -1,4 +1,4 @@
-module Arrows where
+module ArrowsChapter10 where
 
 --- https://www.haskell.org/arrows/
 
@@ -227,3 +227,5 @@ instance ArrowLoop Auto where
 
 
 --- 10.3 Arrow notation
+
+
