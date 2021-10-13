@@ -1,3 +1,7 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module ProbabilisticFunctional where
 
 
@@ -413,6 +417,8 @@ normalCurve mean stddev x
     u = (x - mean) / stddev
 
 
+
+-----------------------------------------------------
 --- Additional Combinatorics
 
 
@@ -503,12 +509,12 @@ union (x:xs) ys = x : union xs (delete x ys)
 --- Set Data Type
 
 
-newtype Set a = Set [a]
+newtype Set a = Set [a] deriving Show
 
 instance Eq a => Eq (Set a) where
   set1 == set2 
     = subSet set1 set2 && subSet set2 set1
-
+{-
 instance (Show a) => Show (Set a) where
   showsPrec _ (Set s) str = showSet s str
 
@@ -517,7 +523,7 @@ showSet (x:xs) str = showChar '{' (shows x (showl xs str))
     where 
       showl [] str = showChar '}' str
       showl (x:xs) str = showChar ',' (shows x (showl xs str))
-
+-}
 emptySet :: Set a
 emptySet = Set []
 
@@ -545,7 +551,7 @@ list2set [] = Set []
 list2set (x:xs) = insertSet x (list2set xs)
 
 powerSet :: Eq a => Set a -> Set (Set a)
-powerSet (Set xs) = Set (map (\xs -> (Set xs)) (powerList xs))
+powerSet (Set xs) = Set (map (\xs -> (Set xs)) (powerList'' xs))
 
 powerList :: [a] -> [[a]]
 powerList [] = [[]]
@@ -558,6 +564,8 @@ takeSet n (Set xs) = Set (take n xs)
 (Set xs) !!! n = xs !! n
 
 
+--- Hierarchy
+
 empty,v0 :: Set S
 empty = Set []
 v0 = empty
@@ -566,3 +574,194 @@ v2 = powerSet v1
 v3 = powerSet v2
 v4 = powerSet v3
 v5 = powerSet v4
+-- ...
+
+
+
+-- Problem with infinite type
+--powerPower 0 set = Set []
+--powerPower n set = powerSet $ powerPower (n-1) set
+
+
+data Free a = Spread [Free a] | Pure a
+  deriving (Functor, Applicative, Monad)
+
+base1 :: Free [Integer]
+base1 = Pure [1,2,3]
+
+base2 :: Free Integer
+base2 = Spread [Pure 1, Pure 2]
+
+{- 
+powerList [] = [[]]
+powerList (x:xs) = plOfXs ++ [x:l| l <- plOfXs]
+  where
+    plOfXs = powerList xs
+-}
+
+--powerFree :: Free a -> [Free a]
+powerFree (Pure e) = [Spread [Pure e]]
+powerFree (Spread []) = [Spread []]
+powerFree (Spread (x:xs)) 
+  = [Spread new | new <- plOfXs ++ [x:l| l <- plOfXs]]
+    where
+      plOfXs = powerList xs
+
+powerF (Pure e) = Spread [Pure e]
+powerF (Spread []) = Spread [Pure []]
+powerF (Spread (x:xs)) 
+  = meltIn x plOfXs
+    where
+      plOfXs = powerF $ Spread xs
+
+meltIn :: Free a -> Free a -> Free a
+meltIn _ (Pure a) = error "Pure value can't be melt into"
+meltIn e (Spread list) = Spread $ e:list
+
+--powerF2 :: Eq (Free [a]) => Free [a] -> Free [a]
+powerF2 (Pure e) = Spread [Pure e]
+powerF2 (Spread []) = Spread [Pure []]
+powerF2 (Spread xs) = 
+  Spread (map (\xs -> (Spread xs)) (powerList'' xs))
+
+
+
+{-
+powerSet :: Eq a => Set a -> Set (Set a)
+powerSet (Set xs) = 
+  Set (map (\xs -> (Set xs)) (powerList'' xs))
+
+powerList'' [] = [[]]
+powerList'' list = [] :  [e:l | e <- list
+                              , l <- powerList'' 
+                                     $ eliminated e list]
+  where
+      eliminated :: Eq a => a -> [a] -> [a]
+      eliminated e (e':r)
+         | e == e'   = r
+         | otherwise = eliminated e r
+      eliminated _ [] = error "not valid"     
+-}
+
+{-
+powerFree (Pure e) = Spread [Pure e]
+powerFree (Spread []) = Spread []
+powerFree (Spread (x:xs)) 
+  = Spread $ plOfXs ++ [x:l| l <- plOfXs]
+    where
+      (Spread plOfXs) = powerFree $ Spread xs
+-}
+
+listToFree :: [a] -> Free a
+listToFree list = Spread [Pure e | e <- list]
+
+--data Freer sig a = Op (sig (Freer sig a)) | Value a
+--data Sig f = Level f | Element f
+--newtype Combi a = Freer (Sig Freer) a
+
+--freePower (Pure a) = Spread [a]
+--freePower (Spread  list) = listToFree $ powerList'' list  
+
+--freeToList (Pure a) = [a]
+--freeToList (Spread list) = [freeToList e| e <- list]
+
+
+genFree freeA 0 = Pure ()
+genFree (Pure p) n = undefined
+
+--gen list 0 = [ [] ]
+--gen list n = [ new:old | new <- list, old <- gen list (n-1) ]
+
+
+
+----------------------------------------------------------
+----------------- Relations represented as Sets
+
+type Rel a = Set (a,a)
+
+-- domR gives the domain of a relation.
+domR :: Ord a => Rel a -> Set a
+domR (Set r) = list2set [ x | (x,_) <- r ]
+
+-- ranR gives the range of a relation.
+ranR :: Ord a => Rel a -> Set a
+ranR (Set r) = list2set [ y | (_,y) <- r ]
+
+-- idR creates the identity relation ∆A over a set A:
+idR :: Ord a => Set a -> Rel a
+idR (Set xs) = Set [(x,x) | x <- xs]
+
+-- The total relation over a set is given by:
+totalR :: Set a -> Rel a
+totalR (Set xs) = Set [(x,y) | x <- xs, y <- xs ]
+
+-- invR inverts a relation (i.e., the function maps R to R−1
+invR :: Ord a => Rel a -> Rel a
+invR (Set []) = (Set [])
+invR (Set ((x,y):r)) = insertSet (y,x) (invR (Set r))
+
+-- inR checks whether a pair is in a relation.
+inR :: Ord a => Rel a -> (a,a) -> Bool
+inR r (x,y) = inSet (x,y) r
+
+-- complement of a relation R
+complR :: Ord a => Set a -> Rel a -> Rel a
+complR (Set xs) r =
+  Set [ (x,y) | x <- xs
+              , y <- xs
+              , not (inR r (x,y))]
+
+-- A check for reflexivity of R
+reflR :: Ord a => Set a -> Rel a -> Bool
+reflR set r = subSet (idR set) r
+
+-- A check for irreflexivity of R on A p
+irreflR :: Ord a => Set a -> Rel a -> Bool
+irreflR (Set xs) r =
+  all (\ pair -> not (inR r pair)) [(x,x) | x <- xs]
+
+-- A check for symmetry of R
+symR :: Ord a => Rel a -> Bool
+symR (Set []) = True
+symR (Set ((x,y):pairs)) 
+  | x == y = symR (Set pairs)
+  | otherwise = 
+        inSet (y,x) (Set pairs)
+        && symR (deleteSet (y,x) (Set pairs))
+
+-- A check for transitivity of R
+transR :: Ord a => Rel a -> Bool
+transR (Set []) = True
+transR (Set s) = and [ trans pair (Set s) | pair <- s ] 
+  where
+    trans (x,y) (Set r) =
+      and [ inSet (x,v) (Set r) | (u,v) <- r, u == y ]
+
+composePair :: Ord a => (a,a) -> Rel a -> Rel a
+composePair (x,y) (Set []) = Set []
+composePair (x,y) (Set ((u,v):s))
+  | y == u = insertSet (x,v) (composePair (x,y) (Set s))
+  | otherwise = composePair (x,y) (Set s)
+
+unionSet :: (Ord a) => Set a -> Set a -> Set a
+unionSet (Set []) set2 = set2
+unionSet (Set (x:xs)) set2 =
+  insertSet x (unionSet (Set xs) (deleteSet x set2))
+
+compR :: Ord a => Rel a -> Rel a -> Rel a
+compR (Set []) _ = (Set [])
+compR (Set ((x,y):s)) r =
+  unionSet (composePair (x,y) r) (compR (Set s) r)
+
+repeatR :: Ord a => Rel a -> Int -> Rel a
+repeatR r n 
+  | n < 1 = error "argument < 1"
+  | n == 1 = r
+  | otherwise = compR r (repeatR r (n-1))
+
+r = Set [(0,2),(0,3),(1,0),(1,3),(2,0),(2,3)]
+r2 = compR r r
+r3 = repeatR r 3
+r4 = repeatR r 4
+
+
