@@ -411,3 +411,158 @@ normalCurve mean stddev x
   = 1 / sqrt (2 * pi) * exp (-1/2 * u^2)
   where 
     u = (x - mean) / stddev
+
+
+--- Additional Combinatorics
+
+
+genAcc :: [] a -> [] Int -> [[[[a]]]]
+genAcc = undefined
+
+-- gen :: [] a -> Int -> [] ([] a)
+gen list 0 = [ [] ]
+gen list n = [ new:old | new <- list, old <- gen list (n-1) ]
+
+
+--genGen (i:restI) list = [genGen restI $ gen l i | l <- list]
+
+nOverK :: (Eq a, Num t, Eq t) => [a] -> t -> [[a]]
+nOverK list 0 = [[]]
+nOverK list n = [ now : rest | now <- list, rest <- nOverK (eliminated now list) (n-1)]
+   where
+      eliminated :: Eq a => a -> [a] -> [a]
+      eliminated e (e':r)
+         | e == e'   = r
+         -- | otherwise = e' : eliminated e r
+         -- different ideas of order, either by eliminated or by list comprehension
+         | otherwise = eliminated e r
+      eliminated _ [] = error "not valid"
+-- rewrite in do notation
+
+testGen0 :: [[Integer]]
+testGen0 = nOverK [1,2,3] 2
+testGen1 :: [[[Integer]]]
+testGen1 = flip gen 2 $ nOverK [1,2,3] 2
+testGen2 :: [[[[Integer]]]]
+testGen2 = flip gen 2 $ flip gen 2 $ nOverK [1,2,3] 2
+
+--genGen [] listList = [[]]
+--genGen (i:restI) listList = [ gen (now:old) i | now <- listList, old <- genGen restI listList ]
+
+---
+
+
+{-
+powerList [] = [[]]
+powerList (x:xs) = plOfXs ++ [x:l| l <- plOfXs]
+  where
+    plOfXs = powerList xs
+-}
+-- wrong
+powerList' [] = [[]]
+powerList' (x:xs) = [] :  [x:l | l <- powerList' xs]
+
+--korrekt, und in der art aufgezählt, wie man es machen würde
+powerList'' [] = [[]]
+powerList'' list = [] :  [e:l | e <- list
+                              , l <- powerList'' 
+                                     $ eliminated e list]
+  where
+      eliminated :: Eq a => a -> [a] -> [a]
+      eliminated e (e':r)
+         | e == e'   = r
+         | otherwise = eliminated e r
+      eliminated _ [] = error "not valid"                                     
+
+
+data S = Void deriving (Eq,Show)
+empty' :: [S]
+empty' = []
+
+pl2 :: [Integer] -> [[[Integer]]]
+pl2 list = powerList'' $ powerList'' list
+
+-- as foldl (b -> a -> b) b (t a) ?
+intersectMany :: Eq a => [[a]] -> [a]
+intersectMany [] = error "nothing to intersect"
+intersectMany [a,b] = intersect a b
+intersectMany (a:b:rest) = intersectMany $ (intersect a b) : rest
+
+intersect [] _ = []
+intersect (x:xs) s
+  | elem x s = x : intersect xs s
+  | otherwise = intersect xs s
+
+unionMany :: Eq a => [[a]] -> [a]
+unionMany = foldl union []
+union :: Eq a => [a] -> [a] -> [a]
+union [] ys = ys
+union (x:xs) ys = x : union xs (delete x ys)
+
+
+--- Set Data Type
+
+
+newtype Set a = Set [a]
+
+instance Eq a => Eq (Set a) where
+  set1 == set2 
+    = subSet set1 set2 && subSet set2 set1
+
+instance (Show a) => Show (Set a) where
+  showsPrec _ (Set s) str = showSet s str
+
+showSet [] str = showString "{}" str
+showSet (x:xs) str = showChar '{' (shows x (showl xs str))
+    where 
+      showl [] str = showChar '}' str
+      showl (x:xs) str = showChar ',' (shows x (showl xs str))
+
+emptySet :: Set a
+emptySet = Set []
+
+isEmpty :: Set a -> Bool
+isEmpty (Set []) = True
+isEmpty _ = False
+
+inSet :: (Eq a) => a -> Set a -> Bool
+inSet x (Set s) = elem x s
+
+subSet :: (Eq a) => Set a -> Set a -> Bool
+subSet (Set []) _ = True
+subSet (Set (x:xs)) set = (inSet x set) && subSet (Set xs) set
+
+insertSet :: (Eq a) => a -> Set a -> Set a
+insertSet x (Set ys) 
+  | inSet x (Set ys) = Set ys
+  | otherwise = Set (x:ys)
+
+deleteSet :: Eq a => a -> Set a -> Set a
+deleteSet x (Set xs) = Set (delete x xs)
+
+list2set :: Eq a => [a] -> Set a
+list2set [] = Set []
+list2set (x:xs) = insertSet x (list2set xs)
+
+powerSet :: Eq a => Set a -> Set (Set a)
+powerSet (Set xs) = Set (map (\xs -> (Set xs)) (powerList xs))
+
+powerList :: [a] -> [[a]]
+powerList [] = [[]]
+powerList (x:xs) = (powerList xs) ++ (map (x:) (powerList xs))
+
+takeSet :: Eq a => Int -> Set a -> Set a
+takeSet n (Set xs) = Set (take n xs)
+
+(!!!) :: Eq a => Set a -> Int -> a
+(Set xs) !!! n = xs !! n
+
+
+empty,v0 :: Set S
+empty = Set []
+v0 = empty
+v1 = powerSet v0
+v2 = powerSet v1
+v3 = powerSet v2
+v4 = powerSet v3
+v5 = powerSet v4

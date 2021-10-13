@@ -28,7 +28,7 @@ instance P.Functor Bag' where
 -- B.1  Bags
 
 newtype Bag a = Bag {elements :: [a]}
-  deriving ( P.Functor, P.Applicative, P.Monad )
+  deriving ( P.Functor, P.Applicative, P.Monad, P.Show )
 
 nullBag :: Bag a
 nullBag = Bag []
@@ -182,18 +182,22 @@ instance (Key k1, Key k2) => Key (k1, k2) where -- product types
   dom (Comp t) = ix' (P.fmap dom t)
   cod (Comp t) = reduce (P.fmap cod t)
   lookup (Comp t) (k1,k2) = lookup (lookup t k1) k2
-  ix kvs = Comp (P.fmap ix (ix (P.fmap _assoc kvs)))
+  ix kvs = Comp (P.fmap ix (ix (P.fmap assoc kvs)))
   --  where assoc (Bag ((k1,k2), v)) = Bag (k1, (k2, v))
   -- assoc channged to assocs
-  ix' (Comp t) = P.fmap _assoc' (ix' (P.fmap ix' t))
-  -- assoc' channged to assocs
+  ix' (Comp t) = P.fmap unassoc (ix' (P.fmap ix' t))
+  -- assoc' channged to unassoc
 instance (P.Functor (Map k1), P.Functor (Map k2)) 
           => P.Functor (Map (k1, k2)) 
   where
     fmap f (Comp t) = Comp (P.fmap (P.fmap f) t)
 
+assoc = \((a,b),c) -> (a,(b,c))
+unassoc = \(a,(b,c)) -> ((a,b),c)
 
-type Identfier = P.Int
+
+
+type Identfier = Word16
 type Name = P.String
 type Date = P.Int
 type Amount = P.Int
@@ -220,7 +224,9 @@ invoices = Bag [I 201 101 20160921 20,
                 I 202 101 20160316 15,
                 I 203 103 20160520 10]
 
-indexBy s f = ix (P.fmap (_and f P.id) s)
+--indexBy s f = ix (P.fmap (_and f P.id) s)
+indexBy :: Key k => Bag v -> (v->k) -> Map k (Bag v)
+indexBy s f = ix (P.fmap (\v -> (f v,v)) s)
 
 example :: Bag Customer -> Bag Invoice -> Bag (Bag Name, Bag Amount)
 example cs is =
@@ -237,3 +243,5 @@ query :: Bag (P.String, P.Int)
 query = reduceBag (P.fmap cp (example customers invoices))
   where
     cp (Bag x, Bag y) = Bag (P.zip x y)
+
+
