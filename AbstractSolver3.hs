@@ -231,11 +231,11 @@ testUnitProp1 = unitProp [cl4,cl5,cl6] fo2Store []
 
 decide :: State -> Store -> Maybe (Store, State)
 decide state store = 
-  case undefined of
+  case undefinedLits of
     [] -> Nothing
     _  -> Just (newStore, newState)
       where
-        decidedId = fst $ fst undefined
+        decidedId = fst $ head undefinedLits
         newState :: State
         newState = (decidedId,True) : state
         newStore :: Store
@@ -249,15 +249,7 @@ decide state store =
 
 
 
-
-
-
-
-
-
 -------------------------
-
-
 
 
 conflictClause :: Clause -> Store -> Maybe Clause
@@ -265,22 +257,6 @@ conflictClause clause store =
   case evalClause clause store of
     Just False -> Just clause
     otherwise  -> Nothing
-
-backtrackOption :: State -> Maybe Int
-backtrackOption [] = Nothing
-backtrackOption ((i,True):rest) = Just i
-backtrackOption ((_,False):rest) = backtrackOption rest
-
-backtrackedState :: State -> (State , State, Maybe Int)
-backtrackedState now = trace now ([], [], Nothing)
-  where
-    trace [] accu = accu
-    trace ((i,True) : rest) (_, tested, _) = 
-      (reverse $ tested, rest, Just i)
-    trace ((i,False) : rest) (_, tested, _) =
-      trace rest ([] , (i,False) : tested, Nothing)
-
-
 
 -------------------------
 --- FailState
@@ -301,6 +277,24 @@ failState f store state =
 
 
 -------------------------
+
+
+backtrackOption :: State -> Maybe Int
+backtrackOption [] = Nothing
+backtrackOption ((i,True):rest) = Just i
+backtrackOption ((_,False):rest) = backtrackOption rest
+
+backtrackedState :: State -> (State , State, Maybe Int)
+backtrackedState now = trace now ([], [], Nothing)
+  where
+    trace [] accu = accu
+    trace ((i,True) : rest) (_, tested, _) = 
+      (reverse $ tested, rest, Just i)
+    trace ((i,False) : rest) (_, tested, _) =
+      trace rest ([] , (i,False) : tested, Nothing)
+
+
+-------------------------
 --- Backprop-Rule
 
 backtrack :: Formula -> Store -> State -> Maybe (Store, State)
@@ -315,3 +309,44 @@ backtrack f store state =
           discardStore :: (Int,Bool) -> Store -> Store
           discardStore (i,_) = resetStoredId i
 
+
+-------------------------
+--- Solve
+
+solve :: Formula -> (Store,State, Bool)
+solve formula = dpll newStore newState
+  where
+    store :: Store
+    store = buildStore formula
+    state :: State
+    state = []
+    (newStore, newState) = 
+      pureLit formula store state :: (Store, State)
+    dpll :: Store -> State -> (Store, State, Bool)
+    dpll newStore newState =
+      case decide newState newStore of
+        Nothing -> (newStore, newState, True)
+        Just (newStore2, newState2) -> 
+          if failStateTest newStore2 newState2
+            then (newStore2, newState2, False)
+            else (doBacktrack newStore2 newState2)
+    failStateTest :: Store -> State -> Bool
+    failStateTest store state =
+      notBacktrackable state && conflictingFormula store
+      where
+        notBacktrackable :: State -> Bool
+        notBacktrackable state = 
+          case backtrackOption state of
+            Nothing -> True
+            _       -> False
+        conflictingFormula :: Store -> Bool
+        conflictingFormula store = 
+          any ((==) (Just False) . flip evalClause store)  formula
+    doBacktrack :: Store -> State -> (Store, State, Bool)
+    doBacktrack store state = 
+      case backtrack formula store state of
+        Nothing -> (store, state, False)
+        Just (newStore, newState) ->
+          if failStateTest newStore newState
+            then doBacktrack newStore newState
+            else dpll newStore newState
